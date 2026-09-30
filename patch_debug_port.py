@@ -18,6 +18,7 @@ RemoteDebuggingServer::GetInstance() -> IsRemoteDebuggingAllowed()，
 """
 
 import argparse
+import mmap
 import re
 import shutil
 import sys
@@ -43,6 +44,19 @@ PATCH_DB = {
                 (0x256A9CE, "75 0F"),
             ],
         },
+        "154.0.8037.93": {
+            "dll": "chrome.dll",
+            "roots": [
+                r"C:\Program Files\Google\Chrome\Application",
+                r"C:\Program Files (x86)\Google\Chrome\Application",
+            ],
+            "sites": [
+                (0x24A6383, "0F 85 FB 00 00 00"),
+                (0x24A6391, "0F 85 ED 00 00 00"),
+                (0x24A6574, "75 19"),
+                (0x24A657E, "75 0F"),
+            ],
+        },
     },
     "edge": {
         "154.0.4258.37": {
@@ -60,10 +74,47 @@ PATCH_DB = {
                 (0x48F160D, "75 6B"),
             ],
         },
+        "154.0.4258.48": {
+            "dll": "msedge.dll",
+            "roots": [
+                r"C:\Program Files (x86)\Microsoft\Edge\Application",
+                r"C:\Program Files\Microsoft\Edge\Application",
+            ],
+            "sites": [
+                (0x315D91B, "0F 85 3D 59 79 01"),
+                (0x315D929, "0F 85 2F 59 79 01"),
+                (0x48F346D, "75 E6"),
+                (0x48F3477, "75 DC"),
+                (0x48F38B9, "75 75"),
+                (0x48F38C3, "75 6B"),
+            ],
+        },
     },
 }
 
 VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
+
+# ---------------------------------------------------------------------------
+# 「闸门形状」匹配：小版本自动更新后，用它在 dll 里重新定位补丁点（--locate）。
+#
+# 编译出来的校验代码长这样：
+#     mov  eax, 2                  ; NotStartedReason::kDisabledByDefaultUserDataDir
+#     cmp  byte ptr [rsp+d1], 1    ; std::optional::has_value()
+#     jne  <拒绝>                   ; 算不出来 -> 按「是默认目录」处理，fail-closed
+#     cmp  byte ptr [rsp+d2], 0    ; 目录是否等于默认目录（1 = 是）
+#     jne  <拒绝>
+#     <放行>
+# 栈偏移 d1/d2、跳转位移、以及前后文都会随构建变化，所以只固定指令骨架，
+# 变化的字节留通配符。跳转有 6 字节（0F 85 rel32）和 2 字节（75 rel8）两种形态：
+# 同一个闸门在不同调用点被内联时形态不同，两套都要扫。
+# ---------------------------------------------------------------------------
+GATE_PATTERNS = (
+    # (regex, 每个 jne 的字节数)
+    (re.compile(rb"\xb8\x02\x00\x00\x00\x80\xbc\x24..\x00\x00\x01\x0f\x85...."
+                rb"\x80\xbc\x24..\x00\x00\x00\x0f\x85", re.S), 6),
+    (re.compile(rb"\xb8\x02\x00\x00\x00\x80\xbc\x24..\x00\x00\x01\x75."
+                rb"\x80\xbc\x24..\x00\x00\x00\x75.", re.S), 2),
+)
 
 
 def vkey(v):
@@ -113,6 +164,43 @@ def detect_installed(brand):
     return found
 
 
+def scan_any_installed(brand):
+    """扫描搜索根目录，返回所有版本的 {版本: dll路径}（不要求版本已在 PATCH_DB 里）。"""
+    entries = PATCH_DB.get(brand) or {}
+    if not entries:
+        return {}
+    dll_name = next(iter(entries.values()))["dll"]
+    found = {}
+    for root in sorted({r for e in entries.values() for r in e["roots"]}):
+        p = Path(root)
+        if not p.is_dir():
+            continue
+        try:
+            subdirs = [d for d in p.iterdir() if d.is_dir()]
+        except OSError:
+            continue
+        for vdir in subdirs:
+            if not VERSION_RE.match(vdir.name):
+                continue
+            dll = vdir / dll_name
+            if dll.is_file():
+                found[vdir.name] = dll
+    return found
+
+
+def locate_gate_sites(data):
+    """在 dll 字节里按「闸门形状」定位补丁点，返回 [(偏移, 原始字节), ...]，按偏移排序。"""
+    sites = []
+    for pat, jlen in GATE_PATTERNS:
+        for m in pat.finditer(data):
+            base = m.start()
+            j1 = base + 13                       # 第 1 个 jne 的操作码
+            j2 = base + (13 + jlen + 8)          # 中间隔一条 8 字节的 cmp
+            sites.append((j1, bytes(data[j1:j1 + jlen])))
+            sites.append((j2, bytes(data[j2:j2 + jlen])))
+    return sorted(sites, key=lambda s: s[0])
+
+
 def resolve_path(brand, version, explicit_path):
     """确定要操作的 dll 路径和版本号。"""
     if explicit_path:
@@ -136,6 +224,15 @@ def resolve_path(brand, version, explicit_path):
 
     ver = max(installed, key=vkey)
     return installed[ver], ver
+
+
+def is_writable(path):
+    """能否以读写方式打开（只开句柄，不写任何字节）。"""
+    try:
+        with open(path, "r+b"):
+            return True
+    except OSError:
+        return False
 
 
 def backup_path_for(dll, backup_dir):
@@ -173,7 +270,52 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="只校验补丁点，不写入")
     ap.add_argument("--restore", action="store_true", help="从备份恢复原始 dll")
     ap.add_argument("--list", action="store_true", help="列出支持与检测到的版本")
+    ap.add_argument("--locate", action="store_true",
+                    help="扫描 dll 里的闸门指令，打印可直接贴进 PATCH_DB 的补丁点（只读，不写入）")
     args = ap.parse_args(argv)
+
+    if args.locate:
+        brand = args.browser
+        if args.path:
+            dll = Path(args.path)
+            if not dll.is_file():
+                fail("找不到文件: " + str(dll))
+            ver = args.version or (dll.parent.name if VERSION_RE.match(dll.parent.name) else "unknown")
+        else:
+            if not brand:
+                fail("--locate 需要 --browser 或 --path")
+            inst = scan_any_installed(brand)
+            if not inst:
+                fail("未在搜索目录里找到 %s 的 dll，请用 --path 指定" % brand)
+            if args.version:
+                if args.version not in inst:
+                    fail("未找到版本 %s，检测到：%s" % (args.version, ", ".join(sorted(inst, key=vkey))))
+                ver = args.version
+            else:
+                ver = max(inst, key=vkey)
+            dll = inst[ver]
+
+        info("扫描: %s" % dll)
+        with open(dll, "rb") as f:
+            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+                sites = locate_gate_sites(data)
+        if not sites:
+            fail("没找到闸门指令：该版本代码结构可能变了，按 docs/cdp_user_data_dir_check.md 手工定位。")
+        if brand and brand in PATCH_DB:
+            roots = sorted({r for e in PATCH_DB[brand].values() for r in e["roots"]})
+            roots_src = "[\n" + "".join('                r"%s",\n' % r for r in roots) + "            ]"
+        else:
+            roots_src = "[<搜索根目录>]"
+        print('        "%s": {' % ver)
+        print('            "dll": "%s",' % dll.name)
+        print('            "roots": %s,' % roots_src)
+        print('            "sites": [')
+        for off, orig in sites:
+            print('                (0x%X, "%s"),' % (off, orig.hex(" ").upper()))
+        print('            ],')
+        print('        },')
+        info("共 %d 个补丁点。贴进 PATCH_DB 后，先跑 --dry-run 校验。" % len(sites))
+        return
 
     if args.list:
         for brand in sorted(PATCH_DB):
@@ -203,7 +345,12 @@ def main(argv=None):
     if args.restore:
         if not bak.is_file():
             fail("备份不存在: " + str(bak))
-        shutil.copy2(bak, dll)
+        try:
+            shutil.copy2(bak, dll)
+        except PermissionError:
+            fail("恢复被拒绝：%s 不可写。请以管理员身份运行，并先关闭浏览器。" % dll)
+        except OSError as e:
+            fail("恢复失败: %r" % e)
         ok("已从备份恢复: " + str(dll))
         return
 
@@ -220,14 +367,25 @@ def main(argv=None):
 
     if args.dry_run:
         ok("dry-run：%d 个补丁点全部匹配，未写入。" % len(sites))
+        info("写入权限：%s" % ("可写" if is_writable(dll) else
+                              "不可写，正式打补丁需要以管理员身份运行，且先关闭浏览器"))
         return
+
+    if not is_writable(dll):
+        fail("没有写入权限: %s\n       需要以管理员身份运行（右键 PowerShell → 以管理员身份运行），且先关闭浏览器。\n"
+             "       只想确认补丁点是否匹配，可以用 --dry-run。" % dll)
 
     if not args.no_backup:
         if bak.is_file():
             info("备份已存在（跳过）: " + str(bak))
         else:
-            Path(bak.parent).mkdir(parents=True, exist_ok=True)
-            shutil.copy2(dll, bak)
+            try:
+                Path(bak.parent).mkdir(parents=True, exist_ok=True)
+                shutil.copy2(dll, bak)
+            except PermissionError:
+                fail("备份写入被拒绝: %s\n       备份目录不可写：用 --backup-dir 指定一个可写目录，或以管理员身份运行。" % bak)
+            except OSError as e:
+                fail("备份失败: %r" % e)
             ok("已备份: " + str(bak))
 
     for off, orig, new in sites:

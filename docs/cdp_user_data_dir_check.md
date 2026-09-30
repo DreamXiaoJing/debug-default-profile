@@ -259,3 +259,74 @@ git apply D:\Chrome\disable_cdp_user_data_dir_check.patch
 默认用户数据目录开放 CDP 意味着**本机任意进程**都能连上 `127.0.0.1:<port>`
 读取完整 profile（Cookie、登录态、扩展数据）。补丁只是解除软件限制，
 不改变这一事实。仍建议只用专用 `--user-data-dir` 目录跑调试实例。
+
+---
+
+## 7. 二进制补丁点（各版本）
+
+补丁内容是把下面这些条件跳转整条 NOP 掉（6 字节 `0F 85 rel32` → 6 个 `90`，
+2 字节 `75 rel8` → 2 个 `90`）。
+
+### 7.1 Chrome `chrome.dll`
+
+| 版本 | 补丁点（文件偏移, 原始字节） |
+| --- | --- |
+| 154.0.8037.93 | `0x24A6383 0F 85 FB 00 00 00`、`0x24A6391 0F 85 ED 00 00 00`、`0x24A6574 75 19`、`0x24A657E 75 0F` |
+| 154.0.8037.58 | `0x256A7D3 0F 85 FB 00 00 00`、`0x256A7E1 0F 85 ED 00 00 00`、`0x256A9C4 75 19`、`0x256A9CE 75 0F` |
+
+### 7.2 Edge `msedge.dll`
+
+| 版本 | 补丁点（文件偏移, 原始字节） |
+| --- | --- |
+| 154.0.4258.48 | `0x315D91B 0F 85 3D 59 79 01`、`0x315D929 0F 85 2F 59 79 01`、`0x48F346D 75 E6`、`0x48F3477 75 DC`、`0x48F38B9 75 75`、`0x48F38C3 75 6B` |
+| 154.0.4258.37 | `0x31607BB 0F 85 E7 07 79 01`、`0x31607C9 0F 85 D9 07 79 01`、`0x48F11B7 75 E6`、`0x48F11C1 75 DC`、`0x48F1603 75 75`、`0x48F160D 75 6B` |
+
+### 7.3 这些点为什么是对的
+
+`GetInstance()` 里 pipe / port 两个分支各自内联了一份闸门，所以每个 dll 里
+会出现 2 组（Chrome）或 3 组（Edge）同样的指令：
+
+```
+mov  eax, 2                     ; NotStartedReason::kDisabledByDefaultUserDataDir
+cmp  byte ptr [rsp + d1], 1     ; std::optional::has_value()
+jne  <写错误码>                  ; 算不出来 -> 按「是默认目录」处理，fail-closed
+cmp  byte ptr [rsp + d2], 0     ; 目录是否等于默认目录（1 = 是）
+jne  <写错误码>
+<构造 RemoteDebuggingServer，即放行>
+```
+
+两条 `jne` 的目标都是同一段「把 `eax`(=2) 写进外层 expected 的错误槽」的代码，
+所以 NOP 掉之后控制流直接落到放行分支。
+
+### 7.4 怎么在自动更新后重新定位（2026-09-30 用的方法）
+
+`.58 → .93`、`.37 → .48` 都是小版本更新：**机器码逐条相同，只是整体挪了位置**
+（Chrome 整体前移 `0xC4450`，Edge 的 `0x315D…` 段前移 `0x2EA0`、`0x48F…` 段后移 `0x22B6`；
+`call` / `jne` 的相对位移随之变化，其余字节不变）。
+
+做法是把上面那段骨架做成带通配符的字节模式（栈偏移 `d1/d2` 和跳转位移都用 `..`
+跳过），在该 dll 里扫一遍 —— 工具里就是 `--locate`：
+
+```
+python patch_debug_port.py --browser chrome --locate
+python patch_debug_port.py --browser edge --locate
+```
+
+定位的交叉验证方式：
+
+1. 用 `--locate` 扫**旧版本**（`.58` / `.37`）的原始 dll，输出必须与表中旧版本的
+   补丁点完全一致 —— 说明模式没有误匹配。
+2. 扫新版 dll 得到的偏移，用反汇编逐条比对新旧两版的上下文：除 `call` / 跳转位移外
+   指令序列完全相同。
+3. 加进 `PATCH_DB` 后 `--dry-run` 必须通过（写入前逐字节校验原始字节）。
+4. 拿 dll 副本跑一遍「打补丁 → 校验 → 回滚」，回滚后 SHA256 必须与原始文件一致。
+
+手工定位的参考 dll（保留在 `D:\Chrome\`）：
+`chrome.dll.154.0.8037.58.orig.bak`、`msedge.dll.154.0.4258.37.orig.bak`。
+
+### 7.5 两个工程细节
+
+- Edge 的 `Application\<版本>\msedge.dll` 与 `EdgeCore\<版本>\msedge.dll` 是**同一个
+  文件的硬链接**，改一个两个都变；`--restore` 用备份覆盖时也不会把它们拆开成两份。
+- 打补丁要写 `Program Files`，必须**管理员**运行且**先关掉浏览器**（`Users` 组只有
+  读取权限；浏览器运行时 dll 被映射也写不进去）。

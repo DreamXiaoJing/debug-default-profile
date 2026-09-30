@@ -31,10 +31,13 @@ jne   失败
 
 | 浏览器 | 版本 | 目标文件 |
 | --- | --- | --- |
+| Chrome | 154.0.8037.93（当前） | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
+| Edge | 154.0.4258.48（当前） | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
 
-版本对不上（比如自动更新后）工具会拒绝写入，不会打坏文件。新增版本的方法见下文。
+版本对不上（比如自动更新后）工具会拒绝写入，不会打坏文件。新增版本的方法见下文，
+小版本自动更新后可以直接用 `--locate` 自动重新定位补丁点。
 
 ## 用法
 
@@ -44,6 +47,10 @@ jne   失败
 python patch_debug_port.py --browser chrome
 python patch_debug_port.py --browser edge
 ```
+
+`Program Files` 下 `Users` 只有读权限，所以**必须提权**：不是管理员、或浏览器没关，
+工具会在写入前停下并说明原因，不会留下半个备份或半个补丁。
+不确定权限够不够，先跑 `--dry-run`，它最后会打印一行「写入权限：可写 / 不可写」。
 
 只校验、不写入：
 
@@ -64,10 +71,32 @@ python patch_debug_port.py --browser chrome --restore
 - `--backup-dir` 备份放哪（默认放 dll 旁边，后缀 `.orig.bak`）
 - `--no-backup` 不生成备份
 - `--list` 列出支持版本和本机检测结果
+- `--locate` 只读扫描 dll，按「闸门指令形状」打印补丁点，输出可直接贴进 `PATCH_DB`
 
 验证：启动浏览器加 `--remote-debugging-port=9222`，访问 http://127.0.0.1:9222/json/version。
 
 ## 新增一个版本
+
+**小版本自动更新（最常见）**：闸门那几行代码几乎不变，只是整体挪了位置。
+
+```
+python patch_debug_port.py --browser chrome --locate
+python patch_debug_port.py --browser edge --locate
+```
+
+它会打印形如 `(0x24A6383, "0F 85 FB 00 00 00")` 的补丁点，贴进 `patch_debug_port.py`
+的 `PATCH_DB`（记住把 `roots` 填上），然后 `--dry-run` 校验：
+
+```
+python patch_debug_port.py --browser chrome --dry-run
+```
+
+`--locate` 认的是编译后的指令骨架
+（`mov eax,2` → `cmp byte [rsp+d],1` → `jne` → `cmp byte [rsp+d],0` → `jne`），
+栈偏移和跳转位移都用通配符跳过，所以位置变了也认得出来。
+如果它报「没找到闸门指令」，说明大版本改动了这块代码，走下面的手工流程。
+
+**大版本 / 代码结构变了**：
 
 1. 打开新版本，确认报错仍在。
 2. 在 dll 里搜报错字符串，反查引用（RIP 相对寻址 xref），反汇编对应上下文。
