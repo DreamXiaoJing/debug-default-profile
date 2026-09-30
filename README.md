@@ -1,5 +1,7 @@
 # debug-default-profile
 
+**中文** · [English](README.en.md)
+
 让 Chrome / Edge 在「默认用户数据目录」下也能开启远程调试端口（CDP）。
 
 ## 这是什么
