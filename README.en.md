@@ -66,7 +66,8 @@ python patch_debug_port.py --browser edge
 When you are not an administrator — or the browser is still running — the tool stops
 before writing and tells you why; it never leaves a half-written backup or a
 half-applied patch. To find out whether you have permission first, run `--dry-run`:
-its last line reports whether the target is writable (`写入权限：可写 / 不可写`).
+its last line reports whether the target is writable (`写入权限：可写 / 不可写`). If the DLL
+is already patched, it stops earlier to say so and never prints that line.
 
 Verify only, no writes:
 
@@ -79,6 +80,18 @@ Roll back:
 ```
 python patch_debug_port.py --browser chrome --restore
 ```
+
+Re-running on an already-patched DLL writes nothing — it simply reports
+`该 dll 已打过补丁：N 个补丁点均为 NOP` (already patched, all N sites are NOPs). That makes
+`--dry-run` usable as a health check, and it has two ways of reporting "healthy":
+
+| Output | Meaning | What to do |
+| --- | --- | --- |
+| `该 dll 已打过补丁：N 个补丁点均为 NOP` | Patch is in place | Nothing |
+| `dry-run：N 个补丁点全部匹配，未写入` | Version is supported but the patch is gone (the browser recompiled after an update) | Re-apply, elevated |
+
+Only `校验失败，偏移 0x...` needs action: that build is not in `PATCH_DB` yet, so re-locate
+the patch sites with `--locate` first.
 
 Other flags:
 

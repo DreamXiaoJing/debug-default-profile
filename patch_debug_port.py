@@ -361,7 +361,15 @@ def main(argv=None):
 
     good, off, want, cur = verify(data, sites)
     if not good:
-        fail("校验失败，偏移 0x%x：期望 %s，实际 %s。版本/构建不符，拒绝写入。" %
+        # 校验不符有两种可能：① 已经被本工具打过补丁（补丁点已是 NOP）；
+        # ② 真的是版本/构建变了。先区分开，否则「已打过」会误报成「版本不符」。
+        done, _, _, _ = verify(data, sites, expect_patched=True)
+        if done:
+            ok("该 dll 已打过补丁：%d 个补丁点均为 NOP，无需重复写入。" % len(sites))
+            info("还原原始 dll：python patch_debug_port.py --browser %s --restore" % brand)
+            return
+        fail("校验失败，偏移 0x%x：期望 %s，实际 %s。版本/构建不符或文件已被改过，拒绝写入。\n"
+             "       若是自动更新后的新构建，先跑 --locate 重新定位补丁点。" %
              (off, want.hex(" "), cur.hex(" ")))
     info("写入前校验通过")
 
