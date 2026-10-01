@@ -954,28 +954,23 @@ def write_patched(dll, edits):
     return dll.read_bytes()
 
 
-def cmd_auto(args):
-    """只给一个路径：品牌、版本、补丁点全部自己推导，该打的打、已打的跳过。"""
-    dll, brand = loose_target(args.path, args.version)
-    version = args.version or version_near(dll) or "unknown"
-    targets = [t for t in ("debug-port", "no-debugger") if not args.only or args.only == t]
-
-    info("目标: %s" % dll)
-    info("品牌: %s    版本: %s" % (brand or "未知（按 dll 名判断不出来）", version))
-    info("要处理的补丁: %s" % "、".join(targets))
-
-    if not args.dry_run and not is_writable(dll):
-        fail("没有写入权限: %s\n       需要以管理员身份运行，且先关闭浏览器；只想先看看就加 --dry-run。" % dll)
-
-    try:
-        data = dll.read_bytes()
-    except OSError as e:
-        fail("读取失败（浏览器没关？）: %r" % e)
-
+def auto_one(dll, brand, version, args, targets):
+    """处理一份 dll（品牌/版本/补丁点都已定好），返回 (done, skipped, warnings, errors)。"""
     done = []
     skipped = []
     warnings = []
     errors = []
+
+    if not args.dry_run and not is_writable(dll):
+        errors.append("%s：没有写入权限（正式打补丁要以管理员身份运行，且先关闭浏览器）；"
+                      "本次没动它。" % (brand or dll.name))
+        return done, skipped, warnings, errors
+
+    try:
+        data = dll.read_bytes()
+    except OSError as e:
+        errors.append("%s：读取失败 %r（浏览器没关？）" % (brand or dll.name, e))
+        return done, skipped, warnings, errors
 
     # ---------- debug-port ----------
     if "debug-port" in targets:
@@ -1054,6 +1049,50 @@ def cmd_auto(args):
             errors.append("no-debugger：%s（%s）—— 见 docs/no_debugger_statement.md。本次没动它。"
                           % (st, note))
 
+    return done, skipped, warnings, errors
+
+
+def cmd_auto(args):
+    """--path 处理指定的一份 dll；--all 扫 patch_db.json 里所有品牌，各处理最新已安装版本。"""
+    targets = [t for t in ("debug-port", "no-debugger") if not args.only or args.only == t]
+
+    if bool(args.path) == bool(args.all):
+        fail("--path 和 --all 必须二选一：--path 指定一份 dll，--all 扫所有品牌的最新版。")
+
+    jobs = []
+    if args.all:
+        for brand in sorted(BRANDS):
+            inst = scan_brand(brand)
+            if not inst:
+                info("未检测到 %s 安装，跳过" % brand)
+                continue
+            ver = max(inst, key=vkey)
+            older = [v for v in sorted(inst, key=vkey) if v != ver]
+            if older:
+                info("%s：本机还有旧版本目录 %s，只处理最新版 %s"
+                     % (brand, "、".join(older), ver))
+            jobs.append((inst[ver], brand, ver))
+        if not jobs:
+            fail("没找到本机已安装的 Chrome / Edge；用 --path 直接指定 dll。")
+    else:
+        dll, brand = loose_target(args.path, args.version)
+        jobs.append((dll, brand, args.version or version_near(dll) or "unknown"))
+
+    done = []
+    skipped = []
+    warnings = []
+    errors = []
+    for dll, brand, version in jobs:
+        info("目标: %s" % dll)
+        info("品牌: %s    版本: %s" % (brand or "未知（按 dll 名判断不出来）", version))
+        if len(jobs) > 1 or not args.all:
+            info("要处理的补丁: %s" % "、".join(targets))
+        d, s, w, e = auto_one(dll, brand, version, args, targets)
+        done += d
+        skipped += s
+        warnings += w
+        errors += e
+
     # ---------- 汇总 ----------
     print()
     for line in done:
@@ -1069,7 +1108,7 @@ def cmd_auto(args):
     elif done:
         info("验证 CDP：浏览器加 --remote-debugging-port=9222，访问 http://127.0.0.1:9222/json/version")
         info("验证 debugger：开 DevTools（F12）执行 (function(){debugger;return 42})()，期望直接返回 42")
-        info('回滚：python patch_browser.py no-debugger --path "%s" --restore' % dll)
+        info('回滚：python patch_browser.py <子命令> --path "<dll>" --restore')
     elif not errors:
         info("没有需要改动的地方。")
     if errors:
@@ -1244,9 +1283,10 @@ def full_check():
 
     # ---------- 教程 ----------
     print("\n[教程] <子命令> = debug-port（别名 cdp）｜ no-debugger（别名 nodebug）｜ auto")
-    print("  0) 最省事：只给一个路径，品牌/版本/补丁点它自己推导，该打的打、已打的跳过：")
-    print('       python patch_browser.py auto --path "C:\\...\\Application\\<版本>\\chrome.dll"')
-    print('       python patch_browser.py auto --path "C:\\...\\chrome.exe" --dry-run   # 先预览')
+    print("  0) 最省事：一键修复.bat 双击（浏览器更新后补丁失效就跑它）；命令行等价写法：")
+    print("       python patch_browser.py auto --all --dry-run    # 先预览，不动手")
+    print("       python patch_browser.py auto --all              # 需要管理员")
+    print('       python patch_browser.py auto --path "C:\\...\\chrome.dll"   # 只处理一份')
     print("  1) 只读体检（不需要管理员）：")
     print("       python patch_browser.py <子命令> --list")
     print("       python patch_browser.py <子命令> --browser chrome --dry-run")
@@ -1316,10 +1356,12 @@ def main(argv=None):
 
     p3 = sub.add_parser("auto",
                         help="只给一个路径，品牌 / 版本 / 补丁点全部自己推导后再打",
-                        description="只给一个浏览器路径（dll、浏览器 exe 或版本目录都行）："
-                                    "品牌、版本、补丁点自己推导，该打的打、已打的跳过")
-    p3.add_argument("--path", required=True,
-                    help="chrome.dll / msedge.dll、浏览器 exe，或它们所在的版本目录")
+                        description="只给一个路径（dll、浏览器 exe 或版本目录都行）："
+                                    "品牌、版本、补丁点自己推导，该打的打、已打的跳过；"
+                                    "--all 则扫所有品牌的最新已安装版本")
+    p3.add_argument("--path", help="chrome.dll / msedge.dll、浏览器 exe、Application 目录或版本目录")
+    p3.add_argument("--all", action="store_true",
+                    help="不用给路径：扫 patch_db.json 里的所有品牌，各处理本机最新已安装版本")
     p3.add_argument("--version", help="手动指定版本号（默认从目录名推断）")
     p3.add_argument("--only", choices=["debug-port", "no-debugger"],
                     help="只处理其中一个补丁（默认两个都处理）")

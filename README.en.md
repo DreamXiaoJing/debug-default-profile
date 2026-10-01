@@ -97,7 +97,18 @@ three subcommands:
 | --- | --- | --- |
 | `debug-port` (alias `cdp`) | CDP port on the default user data directory | `.orig.bak` |
 | `no-debugger` (alias `nodebug`) | ignore JS `debugger` statements | `.nodebug.bak` |
-| `auto` | one path in, everything else derived (runs both patches) | same as above |
+| `auto` | one path in (or `--all` for every brand's newest install), everything else derived | same as above |
+
+**Easiest of all: double-click [一键修复.bat](一键修复.bat).** A browser auto-update wipes both
+patches; double-clicking it asks for UAC elevation, offers to close the browser if it is running,
+and re-applies both patches to the **newest** Chrome / Edge install. A version that is not in
+`patch_db.json` yet gets located on the spot and recorded. It is equivalent to
+`python patch_browser.py auto --all`. To see what it would do without writing anything (and
+without administrator rights):
+
+```
+一键修复.bat --dry-run
+```
 
 The two patch subcommands take the same options; the examples below use `debug-port` — just
 swap the subcommand for the other tool.
@@ -114,6 +125,9 @@ python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\
 ```
 
 To handle only one of the two patches, pass `--only debug-port` or `--only no-debugger`.
+With no path at all, `--all` walks every brand in `patch_db.json` and handles the newest
+installed version of each (this is what `一键修复.bat` runs); leftover older version
+directories are skipped and reported.
 
 Not sure where you stand? **Run it with no subcommand**: it checks both patches against both
 browsers (installed versions, patch state, backups, write permission, whether the browser is

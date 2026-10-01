@@ -80,7 +80,16 @@ jne   失败
 | --- | --- | --- |
 | `debug-port`（别名 `cdp`） | 默认用户数据目录下也能开 CDP 端口 | `.orig.bak` |
 | `no-debugger`（别名 `nodebug`） | 忽略 JS 的 `debugger` 语句 | `.nodebug.bak` |
-| `auto` | 只给一个路径，其余全部自己推导（上面两个都处理） | 同上 |
+| `auto` | 只给一个路径（或 `--all` 扫所有品牌的最新版），其余全部自己推导 | 同上 |
+
+**最省事：双击 [一键修复.bat](一键修复.bat)。** 浏览器自动更新后两个补丁都会失效，双击它即可：
+弹 UAC 提权 → 必要时问你要不要关掉浏览器 → 自动把 Chrome / Edge **最新版**的两个补丁重新打好，
+新版本会现场定位补丁点并收录进 `patch_db.json`。等价于 `python patch_browser.py auto --all`。
+只想看它打算做什么（不写任何文件、不需要管理员）：
+
+```
+一键修复.bat --dry-run
+```
 
 两个补丁子命令的参数完全一致，下面以 `debug-port` 为例，换成 `no-debugger` 即可。
 
@@ -94,6 +103,8 @@ python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\
 ```
 
 只想处理其中一个补丁，加 `--only debug-port` 或 `--only no-debugger`。
+不想给路径就用 `--all`：扫 `patch_db.json` 里的所有品牌，各处理本机最新已安装版本
+（`一键修复.bat` 走的就是这条），本机同时留着的旧版本目录会被跳过并提示。
 
 不知道现在是什么状态？**直接不带子命令运行**，它会把两个补丁 × 两个浏览器体检一遍
 （安装版本、补丁状态、备份、写权限、浏览器是否还开着），再打印下一步该敲哪条命令和常用教程。
