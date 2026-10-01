@@ -319,6 +319,23 @@ differs: `0x71D1AD2: 0x75 -> 0xEB`.
 Full reverse-engineering notes and maintenance steps:
 [docs/no_debugger_statement.md](docs/no_debugger_statement.md) (Chinese).
 
+## Community
+
+**9222 社区** (9222 Community) — patches for official Chrome / Edge. QQ group: **799741829**
+(Chinese-speaking; group name「9222 社区 · 浏览器调试」).
+
+- Before asking, run the self-check and paste its output — it answers most questions up front:
+
+  ```
+  python patch_browser.py
+  ```
+
+- If a browser update wiped the patches, double-click `一键修复.bat` instead of asking.
+- Questions solved in the group are filed into GitHub Discussions; the README and docs in this
+  repo remain the source of truth.
+- House rules: your own machine and environments you are authorized to touch only; no cracking
+  other people's systems, no unauthorized scraping.
+
 ## Disclaimer
 
 - For your own browser on your own machine only.

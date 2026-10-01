@@ -275,6 +275,20 @@ python patch_browser.py no-debugger --browser chrome --restore
 
 完整逆向过程与日常维护见 [docs/no_debugger_statement.md](docs/no_debugger_statement.md)。
 
+## 社区
+
+**9222 社区** —— 官方 Chrome / Edge 调试补丁。QQ 群：**799741829**（群名「9222 社区 · 浏览器调试」）。
+
+- 提问前先跑一次自检，把输出一起贴上来，能省掉大半来回：
+
+  ```
+  python patch_browser.py
+  ```
+
+- 浏览器更新后补丁失效，双击 `一键修复.bat` 即可，不用在群里问。
+- 群里解决过的问题会整理进 GitHub Discussions；仓库里的 README / docs 才是最终依据。
+- 群规：只用于自己的机器和你有授权的环境；不聊破解他人系统、不聊未授权抓取。
+
 ## 免责声明
 
 - 只用于你自己的浏览器、你自己的机器。
