@@ -1,0 +1,66 @@
+{
+  "_readme": [
+    "版本更新后会变的参数都在这个文件里 —— 改这里就行，不用改 patch_browser.py。",
+    "",
+    "brands   : 品牌 -> { dll 文件名, 安装搜索根目录 }。新增品牌只动这里。",
+    "patch_db : debug-port（CDP 补丁）的补丁点。每个版本 = { \"文件偏移(hex)\": \"原始字节(hex)\" }。",
+    "           替换值统一是等长的 NOP（0x90）；原始字节用于写入前校验，对不上就拒绝写入。",
+    "           只追加、不删旧版本条目 —— 旧版本是回滚与取证依据。",
+    "",
+    "新增/更新版本：python patch_browser.py debug-port --locate --save 会自动写好这一段；",
+    "               或者直接 python patch_browser.py auto --path <dll 路径> 让它自己定位并补上。",
+    "no-debugger 的补丁点每次运行自己推导，不存在这里。"
+  ],
+
+  "brands": {
+    "chrome": {
+      "dll": "chrome.dll",
+      "roots": [
+        "C:\\Program Files\\Google\\Chrome\\Application",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application"
+      ]
+    },
+    "edge": {
+      "dll": "msedge.dll",
+      "roots": [
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application",
+        "C:\\Program Files\\Microsoft\\Edge\\Application"
+      ]
+    }
+  },
+
+  "patch_db": {
+    "chrome": {
+      "154.0.8037.58": {
+        "0x256A7D3": "0F 85 FB 00 00 00",
+        "0x256A7E1": "0F 85 ED 00 00 00",
+        "0x256A9C4": "75 19",
+        "0x256A9CE": "75 0F"
+      },
+      "154.0.8037.93": {
+        "0x24A6383": "0F 85 FB 00 00 00",
+        "0x24A6391": "0F 85 ED 00 00 00",
+        "0x24A6574": "75 19",
+        "0x24A657E": "75 0F"
+      }
+    },
+    "edge": {
+      "154.0.4258.37": {
+        "0x31607BB": "0F 85 E7 07 79 01",
+        "0x31607C9": "0F 85 D9 07 79 01",
+        "0x48F11B7": "75 E6",
+        "0x48F11C1": "75 DC",
+        "0x48F1603": "75 75",
+        "0x48F160D": "75 6B"
+      },
+      "154.0.4258.48": {
+        "0x315D91B": "0F 85 3D 59 79 01",
+        "0x315D929": "0F 85 2F 59 79 01",
+        "0x48F346D": "75 E6",
+        "0x48F3477": "75 DC",
+        "0x48F38B9": "75 75",
+        "0x48F38C3": "75 6B"
+      }
+    }
+  }
+}

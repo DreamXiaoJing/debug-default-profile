@@ -305,12 +305,15 @@ jne  <写错误码>
 `call` / `jne` 的相对位移随之变化，其余字节不变）。
 
 做法是把上面那段骨架做成带通配符的字节模式（栈偏移 `d1/d2` 和跳转位移都用 `..`
-跳过），在该 dll 里扫一遍 —— 工具里就是 `--locate`：
+跳过），在该 dll 里扫一遍 —— 工具里就是 `--locate`（`--save` 直接把结果写进 `patch_db.json`）：
 
 ```
-python patch_debug_port.py --browser chrome --locate
-python patch_debug_port.py --browser edge --locate
+python patch_browser.py debug-port --browser chrome --locate --save
+python patch_browser.py debug-port --browser edge --locate --save
 ```
+
+（同一个 `--locate` 也认「闸门已变成 NOP」的形态，所以在**已打过补丁**的 dll 上跑，
+它会回一句「该 dll 已打过补丁」，而不是误报「没找到闸门指令」。）
 
 定位的交叉验证方式：
 
@@ -318,7 +321,7 @@ python patch_debug_port.py --browser edge --locate
    补丁点完全一致 —— 说明模式没有误匹配。
 2. 扫新版 dll 得到的偏移，用反汇编逐条比对新旧两版的上下文：除 `call` / 跳转位移外
    指令序列完全相同。
-3. 加进 `PATCH_DB` 后 `--dry-run` 必须通过（写入前逐字节校验原始字节）。
+3. 加进 `patch_db.json` 的 `patch_db` 后 `--dry-run` 必须通过（写入前逐字节校验原始字节）。
 4. 拿 dll 副本跑一遍「打补丁 → 校验 → 回滚」，回滚后 SHA256 必须与原始文件一致。
 
 手工定位的参考 dll（保留在 `D:\Chrome\`）：
