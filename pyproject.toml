@@ -1,6 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "debug-default-profile"
-version = "0.1.0"
+name = "patch-browser"
+version = "0.2.0"
 description = "官方 Chrome / Edge 调试补丁：默认用户数据目录下直连 CDP，并让 JS 的 debugger 语句失效"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,4 +22,27 @@ keywords = [
     "debugger",
     "reverse-engineering",
 ]
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = []
+
+[project.scripts]
+patch-browser = "patch_browser:main"
+
+[project.urls]
+Homepage = "https://github.com/DreamXiaoJing/debug-default-profile"
+Repository = "https://github.com/DreamXiaoJing/debug-default-profile"
+Source = "https://github.com/DreamXiaoJing/debug-default-profile"
+
+[tool.hatch.build.targets.wheel]
+# 单文件模块：patch_browser.py 直接落到 site-packages 根
+only-include = ["patch_browser.py"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# 出厂参数随包安装，改名为 default；用户实际用的是用户目录下那份
+"patch_db.json" = "patch_db.default.json"

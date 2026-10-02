@@ -122,8 +122,17 @@ edit that file instead of `patch_browser.py`:
 
 ## Run from source
 
-Requirements: **Windows 10 / 11 + Python 3.11 or newer**. Pure standard library — **no
-dependencies, no `pip install`, no build step**. Clone it and run.
+Requirements: **Windows 10 / 11 + Python 3.11 or newer**. Pure standard library — no third-party
+dependencies and no build step. Two ways to run it:
+
+**Option 1: install with pip** (gives you a `patch-browser` command)
+
+```shell
+pip install git+https://github.com/DreamXiaoJing/debug-default-profile.git
+patch-browser
+```
+
+**Option 2: clone and run it in place** (to read or modify the code, or to install nothing)
 
 ```shell
 git clone https://github.com/DreamXiaoJing/debug-default-profile.git
@@ -131,19 +140,29 @@ cd debug-default-profile
 python patch_browser.py
 ```
 
-That last command is the **self-check**: read-only, no administrator rights needed. It reports
-both patches across both browsers and then tells you what to do next. To actually patch a
-browser (for example after an auto-update wiped the patches):
+Both run the same **self-check**: read-only, no administrator rights needed. It reports both
+patches across both browsers and then tells you what to do next. The rest of this README uses
+the clone form; **with the pip install, replace `python patch_browser.py` with `patch-browser`**.
+
+To actually patch a browser (for example after an auto-update wiped the patches):
 
 ```shell
-一键修复.bat
+一键修复.bat                      # clone: double-clicking works too (UAC + closes the browser)
+patch-browser auto --all          # pip: run it from an elevated terminal
 ```
 
-Double-clicking works too — it asks for UAC elevation, offers to close the browser if it is
-running, and re-applies both patches. The command-line equivalent is
-`python patch_browser.py auto --all`.
+Both are equivalent: `auto --all` finds the brands and versions by itself, locates the patch
+sites of a new build on the spot and records them.
 
-You do not have to keep a checkout at all: the whole tool is `patch_browser.py` +
+Where the configuration file lives (nothing you have to manage, but worth knowing):
+
+- **Clone**: the `patch_db.json` in the repository, next to the script.
+- **pip install**: `%LOCALAPPDATA%\patch-browser\patch_db.json`, created on first run from the
+  packaged `patch_db.default.json`. **Upgrading or uninstalling the package never touches it**,
+  so the versions you recorded are safe. Point `PATCH_BROWSER_DB=<path>` somewhere else if you
+  want a different location.
+
+You do not have to keep a checkout at all: in clone form the whole tool is `patch_browser.py` +
 `patch_db.json` — copy those two anywhere and it runs (`一键修复.bat` is an optional
 convenience entry point).
 

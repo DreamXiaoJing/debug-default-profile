@@ -1,4 +1,4 @@
-﻿# debug-default-profile
+# debug-default-profile
 
 **中文** · [English](README.en.md)
 
@@ -101,8 +101,17 @@ python patch_browser.py debug-port --list --markdown --update-md
 
 ## 跑起来
 
-要求：**Windows 10 / 11 + Python 3.11 或更高**。纯标准库，**没有依赖，不需要 `pip install`**，
-也没有编译步骤——克隆下来就能跑。
+要求：**Windows 10 / 11 + Python 3.11 或更高**。纯标准库，没有第三方依赖，也没有编译步骤。
+两种用法都行：
+
+**方式一：pip 安装**（装完多一个 `patch-browser` 命令）
+
+```shell
+pip install git+https://github.com/DreamXiaoJing/debug-default-profile.git
+patch-browser
+```
+
+**方式二：克隆下来直接跑**（想读/改代码，或者不想装东西）
 
 ```shell
 git clone https://github.com/DreamXiaoJing/debug-default-profile.git
@@ -110,17 +119,27 @@ cd debug-default-profile
 python patch_browser.py
 ```
 
-最后那条是**自检**：只读、不需要管理员，会把两个补丁 × 两个浏览器的状态打一遍，再告诉你要做什么。
+两种方式跑的都是同一个**自检**：只读、不需要管理员，会把两个补丁 × 两个浏览器的状态打一遍，
+再告诉你要做什么。下面统一用克隆版的写法；**pip 装的把 `python patch_browser.py` 换成
+`patch-browser`** 即可。
+
 真要去改浏览器（比如更新后补丁失效）：
 
 ```shell
-一键修复.bat
+一键修复.bat                      # 克隆版：双击也行，它会弹 UAC 提权、必要时关掉浏览器
+patch-browser auto --all          # pip 版：在「以管理员身份运行」的终端里执行
 ```
 
-双击也行——它会弹 UAC 提权、必要时问你要不要关掉浏览器，然后自动重打两个补丁；
-命令行等价写法是 `python patch_browser.py auto --all`。
+两种方式都等价：`auto --all` 会自己找品牌和版本，新版本现场定位补丁点，打完自动收录。
 
-不想保持一个仓库也无所谓：整个工具就是 `patch_browser.py` + `patch_db.json` 两个文件，
+参数文件放哪（不用管，但知道一下有好处）：
+
+- **克隆版**：就是仓库里那个 `patch_db.json`，和脚本放一起。
+- **pip 版**：`%LOCALAPPDATA%\patch-browser\patch_db.json`，首次运行时从随包安装的
+  `patch_db.default.json` 自动生成；**升级或卸载这个包都不会动它**（收录的版本不会丢）。
+  想换位置就设环境变量 `PATCH_BROWSER_DB=<路径>`。
+
+不想保持一个仓库也无所谓：克隆版整个工具就是 `patch_browser.py` + `patch_db.json` 两个文件，
 拷到任何目录都能跑（`一键修复.bat` 是可选的便利入口）。
 
 ## 用法

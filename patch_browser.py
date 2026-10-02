@@ -44,6 +44,7 @@ if 体就永远被跳过：`debugger` 变空操作，文件长度不变，尾部
 import argparse
 import json
 import mmap
+import os
 import platform
 import re
 import shutil
@@ -53,14 +54,19 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# 参数文件：版本更新后会变的参数都在同目录的 patch_db.json 里。
+# 参数文件：版本更新后会变的参数都在 patch_db.json 里。
 #   brands   : 品牌 -> {dll 文件名, 安装搜索根目录}
 #   patch_db : debug-port 的补丁点；每个版本 = { "文件偏移(hex)": "原始字节(hex)" }
 # no-debugger 的补丁点每次运行自己推导，不存在这里。
 # 只追加、不删旧版本条目 —— 旧版本是回滚与取证依据。
+#
+# 放哪由 resolve_db_path() 决定（git clone 出来用就放在脚本旁边；
+# pip 装出来的包装在用户目录，见那里的说明）。
 # ---------------------------------------------------------------------------
 DB_NAME = "patch_db.json"
-DB_PATH = Path(__file__).with_name(DB_NAME)
+DB_DEFAULT_NAME = "patch_db.default.json"     # 随包安装的出厂参数
+SCRIPT_DIR = Path(__file__).resolve().parent
+DB_PATH = None                                # 由 load_db() 确定
 
 BRANDS = {}      # {品牌: {"dll": ..., "roots": [...]}}
 PATCH_DB = {}    # {品牌: {版本: [(偏移, "原始字节hex"), ...]}}
@@ -119,12 +125,46 @@ def _sites_from_json(sites):
     return sorted(((int(off), str(orig).upper()) for off, orig in items), key=lambda s: s[0])
 
 
+def resolve_db_path():
+    """决定用哪份 patch_db.json —— 三种用法都要能跑：
+
+    1. `PATCH_BROWSER_DB` 环境变量指定的路径（想放哪就放哪）；
+    2. 和脚本放在一起的 `patch_db.json`：git clone 出来直接跑、
+       或者「只拷 patch_browser.py + patch_db.json 两个文件」的用法；
+    3. 用户数据目录 `%LOCALAPPDATA%\\patch-browser\\patch_db.json`：
+       pip 装出来的包走这条，首次运行时从随包的 `patch_db.default.json` 拷一份过去。
+       不能直接写 site-packages —— 升级会覆盖、uninstall 会删掉，还可能没权限。
+    """
+    env = os.environ.get("PATCH_BROWSER_DB")
+    if env:
+        return Path(env).expanduser()
+    beside = SCRIPT_DIR / DB_NAME
+    if beside.is_file():
+        return beside
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
+    user = Path(base) / "patch-browser" / DB_NAME
+    if not user.is_file():
+        seed = SCRIPT_DIR / DB_DEFAULT_NAME
+        if seed.is_file():
+            try:
+                user.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(seed, user)
+                info("首次运行：已把出厂参数复制到 %s" % user)
+            except OSError as e:
+                fail("无法创建用户参数文件 %s: %r\n"
+                     "       可以用环境变量 PATCH_BROWSER_DB 指定一个可写路径。" % (user, e))
+    return user
+
+
 def load_db(path=None):
     """读取 patch_db.json；缺文件或写坏了都给一条能看懂的错误。"""
-    global BRANDS, PATCH_DB
-    path = Path(path) if path else DB_PATH
+    global BRANDS, PATCH_DB, DB_PATH
+    path = Path(path) if path else resolve_db_path()
+    DB_PATH = path
     if not path.is_file():
-        fail("找不到参数文件 %s。\n       它应该和 patch_browser.py 放在同一个目录。" % path)
+        fail("找不到参数文件 %s。\n"
+             "       git clone 的用法：让 patch_db.json 和 patch_browser.py 放在同一个目录；\n"
+             "       pip 安装的用法：可以用环境变量 PATCH_BROWSER_DB 指定路径。" % path)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except OSError as e:
@@ -1276,7 +1316,7 @@ def full_check():
     info("平台 %s %s ；只依赖标准库，无需安装依赖" % (platform.system(), platform.machine()))
     nver = sum(len(v) for v in PATCH_DB.values())
     info("参数文件 %s：%d 个品牌 / %d 个版本条目（版本更新后改这个文件）"
-         % (DB_PATH.name, len(BRANDS), nver))
+         % (DB_PATH, len(BRANDS), nver))
 
     procs = running_browsers()
     if procs:
@@ -1374,6 +1414,7 @@ def full_check():
 
     # ---------- 教程 ----------
     print("\n[教程] <子命令> = debug-port（别名 cdp）｜ no-debugger（别名 nodebug）｜ auto")
+    print("       （下面按 git clone 的用法写；pip 装的把 `python patch_browser.py` 换成 `patch-browser`）")
     print("  0) 最省事：一键修复.bat 双击（浏览器更新后补丁失效就跑它）；命令行等价写法：")
     print("       python patch_browser.py auto --all --dry-run    # 先预览，不动手")
     print("       python patch_browser.py auto --all              # 需要管理员")
@@ -1413,15 +1454,20 @@ def add_common_args(p, help_list, help_locate, help_backup):
 
 
 def main(argv=None):
-    load_db()                 # 参数都在同目录的 patch_db.json 里
+    load_db()                 # 参数都在 patch_db.json 里（位置见 resolve_db_path）
+    prog = os.path.basename(sys.argv[0] or "") or "patch-browser"
+    if prog.lower().endswith(".exe"):
+        prog = prog[:-4]
+    if prog in ("-c", "-m", "python", "python.exe"):
+        prog = "patch-browser"
     ap = argparse.ArgumentParser(
-        prog="patch_browser.py",
+        prog=prog,
         description="给官方 Chrome / Edge 打二进制补丁：debug-port（默认目录下也能开 CDP 端口）"
                     " / no-debugger（忽略 JS 的 debugger 语句）"
                     " / auto（只给一个路径，品牌、版本、补丁点自己推导）",
-        epilog="不带子命令直接运行＝把两个补丁全部体检一遍并打印教程；"
-               "例：python patch_browser.py auto --path \"C:\\Program Files\\Google\\Chrome"
-               "\\Application\\154.0.8037.93\\chrome.dll\"",
+        epilog=("不带子命令直接运行＝把两个补丁全部体检一遍并打印教程；例：%s auto --path "
+                "\"C:\\Program Files\\Google\\Chrome\\Application\\154.0.8037.93\\chrome.dll\""
+                % prog),
     )
     sub = ap.add_subparsers(dest="command", metavar="{debug-port,no-debugger,auto}")
 
