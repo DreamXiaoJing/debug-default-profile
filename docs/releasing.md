@@ -14,12 +14,12 @@ git push origin master --tags
 
 推 tag 之后 [`.github/workflows/release.yml`](../.github/workflows/release.yml) 自动做四件事：
 
-1. `uv build` 出 wheel + sdist；
+1. `uv build --wheel` 出 wheel；
 2. `uvx twine check` 校验元数据与 README；
-3. 建 **GitHub Release**，自动生成发布说明，并把 wheel / sdist 作为附件挂上；
+3. 建 **GitHub Release**，自动生成发布说明，并把 wheel 作为附件挂上；
 4. 发到 **PyPI**（版本已存在会自动跳过，不报错）。
 
-（GitHub Packages 不支持 Python 包，见文末说明。）
+（只发 wheel，不发 sdist，原因见文末；GitHub Packages 也不支持 Python 包。）
 
 平时往 `master` 推代码或提 PR 会跑 [`ci.yml`](../.github/workflows/ci.yml)：
 语法检查、裸跑自检、打包校验，再把 wheel 装进干净 venv 跑一遍 `patch-browser`。
@@ -79,15 +79,32 @@ Supported clients and formats）。所以仓库侧边栏的「Packages」对 Pyt
 ## 本机应急手动发布
 
 ```shell
-uv build
-uvx twine check dist/*
-uvx twine upload dist/*      # 用户名填 __token__，密码填 PyPI token
+uv build --wheel
+uvx twine check dist/*.whl
+uvx twine upload dist/*.whl      # 用户名填 __token__，密码填 PyPI token
 ```
+
+## 为什么只发 wheel、不发 sdist
+
+wheel 里**只有该有的东西**：
+
+```
+patch_browser.py                 # 模块本身
+patch_db.default.json            # 出厂参数（首次运行复制到用户目录）
+patch_browser-0.2.0.dist-info/   # 元数据 + LICENSE
+```
+
+而 sdist 里 hatchling 会按 VCS 文件列表把项目杂物一起打进去——`include`、`only-include`、
+`exclude`、`ignore-vcs` 四种配置都压不住 `.gitignore`，之前还漏进过 `.idea/`、
+`.workbuddy/`（本地笔记）、`uv.lock`、`一键修复.bat`。与其一个个往外挑，不如干脆不发 sdist：
+这个包是纯 Python 的 `py3-none-any` wheel，任何平台都能装；要源码的人用 GitHub Release
+自带的 “Source code” 归档，或者直接 clone。
 
 ## 注意
 
 - **PyPI 上已发布的版本号不能覆盖**：改了内容必须升版本号（`0.2.0` → `0.2.1`）。
 - token 只用于手动发布，**用完就去 PyPI 吊销**；能走 OIDC 就别存 token。
-- sdist 的排除规则在 `pyproject.toml` 的 `[tool.hatch.build.targets.sdist]`：
-  `.idea` / `.workbuddy` 这类本地文件不要打进去（曾经把本地笔记打进 sdist，上传前才发现）。
+- **发行物只放该放的**：这里只发 wheel，`pyproject.toml` 里没有 sdist 构建；
+  真要往 wheel 里加东西，只动 `[tool.hatch.build.targets.wheel]` 的
+  `only-include` / `force-include` 两个白名单字段。
 - 发版前确认 `README.md` 与 `README.en.md` 章节同步——`readme` 会作为 PyPI 项目页正文。

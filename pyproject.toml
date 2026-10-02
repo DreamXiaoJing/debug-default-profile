@@ -47,14 +47,8 @@ only-include = ["patch_browser.py"]
 # 出厂参数随包安装，改名为 default；用户实际用的是用户目录下那份
 "patch_db.json" = "patch_db.default.json"
 
-[tool.hatch.build.targets.sdist]
-# 源码包只放项目本身，别把 IDE 状态和本地笔记打进去
-exclude = [
-    ".idea",
-    ".workbuddy",
-    ".venv",
-    "dist",
-    "build",
-    "*.egg-info",
-    "__pycache__",
-]
+# 只发 wheel，不发 sdist（构建用 `uv build --wheel`）：
+# wheel 是完整的纯 Python 包（patch_browser.py + patch_db.default.json + 元数据），
+# 没有任何多余文件；而 sdist 里 hatchling 会按 VCS 文件列表把 .gitignore 之类的东西
+# 一起打进去，include / only-include / exclude / ignore-vcs 都压不住。
+# 需要源码的人用 GitHub Release 自带的 “Source code” 归档，或直接 clone 仓库。

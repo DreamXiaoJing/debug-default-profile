@@ -26,7 +26,7 @@ jobs:
 
       - name: 打包并校验元数据
         run: |
-          uv build
+          uv build --wheel
           uvx twine check dist/*
 
       - name: 装上再跑一次（模拟 pip 安装后的调用）

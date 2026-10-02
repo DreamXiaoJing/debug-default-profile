@@ -19,8 +19,8 @@ jobs:
       - name: 装 uv
         uses: astral-sh/setup-uv@v5
 
-      - name: 构建 wheel + sdist
-        run: uv build
+      - name: 构建 wheel
+        run: uv build --wheel
 
       - name: 校验元数据与 README
         run: uvx twine check dist/*
@@ -28,10 +28,8 @@ jobs:
       - name: 建 GitHub Release 并附上产物
         uses: softprops/action-gh-release@v2
         with:
-          # 只挂真正的产物：dist/ 里还有 hatchling 生成的 .gitignore，别一起传上去
-          files: |
-            dist/*.whl
-            dist/*.tar.gz
+          # 只挂 wheel：发行物里不发 sdist（sdist 会被 hatchling 塞进 .gitignore 等项目杂物）
+          files: dist/*.whl
           generate_release_notes: true
 
       # 需要在 PyPI 配一次 Trusted Publisher（见 docs/releasing.md）。
