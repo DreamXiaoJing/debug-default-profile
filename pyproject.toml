@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "patch-browser"
-version = "0.2.0"
+version = "0.2.1"
 description = "官方 Chrome / Edge 调试补丁：默认用户数据目录下直连 CDP，并让 JS 的 debugger 语句失效"
 readme = "README.md"
 requires-python = ">=3.11"
