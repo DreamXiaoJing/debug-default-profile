@@ -349,6 +349,8 @@ python patch_browser.py no-debugger --browser chrome --restore
 
 **9222 社区** —— 官方 Chrome / Edge 调试补丁。QQ 群：**799741829**（群名「9222 社区 · 浏览器调试」）。
 
+![9222 社区 QQ 群二维码：群号 799741829](https://raw.githubusercontent.com/DreamXiaoJing/debug-default-profile/master/docs/qq-group.jpg)
+
 - 提问前先跑一次自检，把输出一起贴上来，能省掉大半来回：
 
   ```shell

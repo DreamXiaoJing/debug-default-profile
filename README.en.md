@@ -402,6 +402,8 @@ Full reverse-engineering notes and maintenance steps:
 **9222 社区** (9222 Community) — patches for official Chrome / Edge. QQ group: **799741829**
 (Chinese-speaking; group name「9222 社区 · 浏览器调试」).
 
+![9222 Community QQ group QR code (group 799741829)](https://raw.githubusercontent.com/DreamXiaoJing/debug-default-profile/master/docs/qq-group.jpg)
+
 - Before asking, run the self-check and paste its output — it answers most questions up front:
 
   ```shell
