@@ -46,3 +46,15 @@ only-include = ["patch_browser.py"]
 [tool.hatch.build.targets.wheel.force-include]
 # 出厂参数随包安装，改名为 default；用户实际用的是用户目录下那份
 "patch_db.json" = "patch_db.default.json"
+
+[tool.hatch.build.targets.sdist]
+# 源码包只放项目本身，别把 IDE 状态和本地笔记打进去
+exclude = [
+    ".idea",
+    ".workbuddy",
+    ".venv",
+    "dist",
+    "build",
+    "*.egg-info",
+    "__pycache__",
+]
