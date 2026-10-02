@@ -28,19 +28,26 @@ git push origin master --tags
 
 ### PyPI：Trusted Publisher（推荐，仓库里不用存 token）
 
-pypi.org → 项目 `patch-browser` → **Manage → Publishing → Add a new pending publisher**：
+**本项目已经配好了（2026-10-02）**，下面只是记录和备用步骤。
+
+入口是**项目设置**里的 Publishing（不是账号页那个 "pending publisher"，那是给还不存在的项目用的）：
+
+```
+https://pypi.org/manage/project/patch-browser/settings/publishing/
+→ Add a new publisher → GitHub
+```
 
 | 字段 | 值 |
 | --- | --- |
-| PyPI Project Name | `patch-browser` |
 | Owner | `DreamXiaoJing` |
 | Repository name | `debug-default-profile` |
 | Workflow name | `release.yml` |
-| Environment name | 留空 |
+| Environment name | 留空（显示为 `(Any)`，对应 workflow 里没有 `environment:`） |
 
 配好之后，release.yml 里的 `pypa/gh-action-pypi-publish` 直接用 OIDC 发布，**不需要任何 secret**。
 
-没配也行：那一步会失败，但它开了 `continue-on-error`，不影响 GitHub Release 和 GitHub Packages。
+要是哪天配错了或者想撤销：同一个页面点该 publisher 的 **Remove**。没配也不致命——那一步会失败，
+但它开了 `continue-on-error`，不影响 GitHub Release。
 
 ### 用 token 发布（不想用 OIDC 时）
 
