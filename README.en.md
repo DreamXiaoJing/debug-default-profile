@@ -399,8 +399,9 @@ Full reverse-engineering notes and maintenance steps:
 
 ## Community
 
-**9222 社区** (9222 Community) — patches for official Chrome / Edge. QQ group: **799741829**
-(Chinese-speaking; group name「9222 社区 · 浏览器调试」).
+**9222 社区** (9222 Community) — patches for official Chrome / Edge.
+QQ group: **799741829** (Chinese-speaking; group name「9222 社区 · 浏览器调试」);
+WeChat: **gitdream** (say what it is about when adding).
 
 ![9222 Community QQ group QR code (group 799741829)](https://raw.githubusercontent.com/DreamXiaoJing/debug-default-profile/master/docs/qq-group.jpg)
 
