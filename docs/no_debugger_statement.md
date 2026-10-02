@@ -116,7 +116,7 @@ struct Function {
 
 反汇编 `Runtime_HandleDebuggerStatement`（官方 Chrome 154.0.8037.93）：
 
-```
+```asm
                56                      push   rsi                    ; CLOBBER_DOUBLE_REGISTERS 的痕迹
                48 83 ec 30             sub    rsp, 0x30
                4c 89 c6                mov    rsi, r8                ; r8 = Isolate*
@@ -150,7 +150,7 @@ Edge 154.0.4258.48 的机器码形状**完全一致**，只是 `isolate->debug_`
 
 工具认的是**骨架**而不是固定偏移：
 
-```
+```text
 49 8b 88 ?? ?? ?? ??   80 79 ?? 01   75 ??      # disp32 / disp8 / 位移 全通配
 ```
 
@@ -177,7 +177,7 @@ README.md 的「验证」小节。）
 
 字节级核对：
 
-```
+```text
 大小: 补丁后=302709400  备份=302709400  相同=True
 差异字节数: 1
   偏移 0x71d1ad2: 备份 0x75 -> 补丁后 0xeb
@@ -193,7 +193,7 @@ README.md 的「验证」小节。）
 
 **通常什么都不用做**。工具每次运行都重新推导定位，版本一换偏移就自己跟着变：
 
-```
+```shell
 python patch_browser.py no-debugger --list          # 看各版本当前状态
 python patch_browser.py no-debugger --browser chrome --dry-run
 ```

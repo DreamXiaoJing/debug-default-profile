@@ -21,7 +21,7 @@ Chromium 系浏览器默认禁止在默认用户数据目录下绑定 `--remote-
 - 源码里是 `IsRemoteDebuggingAllowed()`，一个 `std::optional<bool>` 决定是否放行，默认「算不出来就当默认目录，直接拒绝」。
 - 编译进 `chrome.dll` / `msedge.dll` 后，这段判断塌缩成几对指令：
 
-```
+```asm
 mov   eax, 2
 cmp   [has_value], 1
 jne   失败
@@ -102,7 +102,7 @@ jne   失败
 新版本会现场定位补丁点并收录进 `patch_db.json`。等价于 `python patch_browser.py auto --all`。
 只想看它打算做什么（不写任何文件、不需要管理员）：
 
-```
+```shell
 一键修复.bat --dry-run
 ```
 
@@ -112,7 +112,7 @@ jne   失败
 目录或版本目录都行 —— 品牌、版本、补丁点全部自己推导：没收录的版本现场按闸门形状定位，
 打完还会把补丁点写回 `patch_db.json`；已经打过的直接跳过。先加 `--dry-run` 看它打算干什么：
 
-```
+```shell
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe" --dry-run
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
@@ -125,13 +125,13 @@ python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\
 （安装版本、补丁状态、备份、写权限、浏览器是否还开着），再打印下一步该敲哪条命令和常用教程。
 全程只读，不写任何文件，也不需要管理员：
 
-```
+```shell
 python patch_browser.py
 ```
 
 先关掉对应的浏览器，然后以管理员运行：
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome
 python patch_browser.py debug-port --browser edge
 ```
@@ -143,13 +143,13 @@ python patch_browser.py debug-port --browser edge
 
 只校验、不写入：
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --dry-run
 ```
 
 回滚：
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --restore
 ```
 
@@ -178,7 +178,7 @@ python patch_browser.py debug-port --browser chrome --restore
 
 **小版本自动更新（最常见）**：闸门那几行代码几乎不变，只是整体挪了位置。
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --locate
 python patch_browser.py debug-port --browser edge --locate
 ```
@@ -186,14 +186,14 @@ python patch_browser.py debug-port --browser edge --locate
 它会打印形如 `"0x24A6383": "0F 85 FB 00 00 00",` 的补丁点（JSON 片段），整段贴进
 `patch_db.json` 里对应品牌的版本段，然后 `--dry-run` 校验。不想手贴就加 `--save`：
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --locate --save
 python patch_browser.py debug-port --browser chrome --dry-run
 ```
 
 更省事的是 `auto`，定位、校验、备份、写入、收录一条龙：
 
-```
+```shell
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
@@ -247,21 +247,21 @@ return isolate->stack_guard()->HandleInterrupts();
 
 先关掉对应的浏览器，然后以管理员运行：
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome
 python patch_browser.py no-debugger --browser edge
 ```
 
 只定位与校验、不写入：
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome --dry-run
 python patch_browser.py no-debugger --list          # 列出各版本当前状态
 ```
 
 回滚（后缀是 `.nodebug.bak`，不会覆盖 CDP 工具的 `.orig.bak`）：
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome --restore
 ```
 
@@ -274,7 +274,7 @@ python patch_browser.py no-debugger --browser chrome --restore
 
 1. 关掉浏览器，带调试端口启动，然后按 F12 打开 DevTools：
 
-   ```
+   ```shell
    chrome.exe --remote-debugging-port=9222
    ```
 
@@ -296,7 +296,7 @@ python patch_browser.py no-debugger --browser chrome --restore
 
 - 提问前先跑一次自检，把输出一起贴上来，能省掉大半来回：
 
-  ```
+  ```shell
   python patch_browser.py
   ```
 

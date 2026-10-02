@@ -30,7 +30,7 @@ No throwaway profile for every automation / debugging / test run.
 - Compiled into `chrome.dll` / `msedge.dll`, that check collapses into a few
   instruction pairs:
 
-```
+```asm
 mov   eax, 2                 ; error code: kDisabledByDefaultUserDataDir
 cmp   [has_value], 1         ; std::optional::has_value()
 jne   reject                 ; no value -> treated as default dir -> reject
@@ -125,7 +125,7 @@ and re-applies both patches to the **newest** Chrome / Edge install. A version t
 `python patch_browser.py auto --all`. To see what it would do without writing anything (and
 without administrator rights):
 
-```
+```shell
 一键修复.bat --dry-run
 ```
 
@@ -138,7 +138,7 @@ the version and the patch sites itself: an unlisted version is located from the 
 shape on the spot, the sites are then written back into `patch_db.json`, and anything already
 patched is skipped. Add `--dry-run` first to see what it intends to do:
 
-```
+```shell
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe" --dry-run
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
@@ -153,13 +153,13 @@ browsers (installed versions, patch state, backups, write permission, whether th
 still running) and then prints the exact next command plus a quick tutorial. It is read-only,
 writes nothing and needs no administrator rights:
 
-```
+```shell
 python patch_browser.py
 ```
 
 Close the browser first, then run as Administrator:
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome
 python patch_browser.py debug-port --browser edge
 ```
@@ -173,13 +173,13 @@ is already patched, it stops earlier to say so and never prints that line.
 
 Verify only, no writes:
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --dry-run
 ```
 
 Roll back:
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --restore
 ```
 
@@ -212,7 +212,7 @@ http://127.0.0.1:9222/json/version.
 
 **Minor auto-update (the common case):** the gate code barely changes, it just moves.
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --locate
 python patch_browser.py debug-port --browser edge --locate
 ```
@@ -221,14 +221,14 @@ It prints patch sites such as `"0x24A6383": "0F 85 FB 00 00 00",` (a JSON fragme
 whole block into the matching brand/version section of `patch_db.json`, then check it with
 `--dry-run`. To skip the manual paste, add `--save`:
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --locate --save
 python patch_browser.py debug-port --browser chrome --dry-run
 ```
 
 Even easier is `auto`, which locates, validates, backs up, writes and records in one go:
 
-```
+```shell
 python patch_browser.py auto --path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
@@ -292,21 +292,21 @@ readable names, entries inside `.text`).
 
 Close the browser first, then run as administrator:
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome
 python patch_browser.py no-debugger --browser edge
 ```
 
 Locate and verify only, no write:
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome --dry-run
 python patch_browser.py no-debugger --list          # status of every installed version
 ```
 
 Roll back (suffix `.nodebug.bak`, never clobbers the CDP tool's `.orig.bak`):
 
-```
+```shell
 python patch_browser.py no-debugger --browser chrome --restore
 ```
 
@@ -320,7 +320,7 @@ before you can watch for a pause. Manual check:
 
 1. Close the browser, start it with the debugging port, then press F12 for DevTools:
 
-   ```
+   ```shell
    chrome.exe --remote-debugging-port=9222
    ```
 
@@ -345,7 +345,7 @@ Full reverse-engineering notes and maintenance steps:
 
 - Before asking, run the self-check and paste its output — it answers most questions up front:
 
-  ```
+  ```shell
   python patch_browser.py
   ```
 

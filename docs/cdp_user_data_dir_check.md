@@ -286,7 +286,7 @@ git apply D:\Chrome\disable_cdp_user_data_dir_check.patch
 `GetInstance()` 里 pipe / port 两个分支各自内联了一份闸门，所以每个 dll 里
 会出现 2 组（Chrome）或 3 组（Edge）同样的指令：
 
-```
+```asm
 mov  eax, 2                     ; NotStartedReason::kDisabledByDefaultUserDataDir
 cmp  byte ptr [rsp + d1], 1     ; std::optional::has_value()
 jne  <写错误码>                  ; 算不出来 -> 按「是默认目录」处理，fail-closed
@@ -307,7 +307,7 @@ jne  <写错误码>
 做法是把上面那段骨架做成带通配符的字节模式（栈偏移 `d1/d2` 和跳转位移都用 `..`
 跳过），在该 dll 里扫一遍 —— 工具里就是 `--locate`（`--save` 直接把结果写进 `patch_db.json`）：
 
-```
+```shell
 python patch_browser.py debug-port --browser chrome --locate --save
 python patch_browser.py debug-port --browser edge --locate --save
 ```
@@ -317,7 +317,7 @@ python patch_browser.py debug-port --browser edge --locate --save
 
 骨架有**两代**，语义一样、字节不同，工具两代都认（2026-10-02 补上第二代）：
 
-```
+```text
 第一代（Edge 153 等更老的构建）
   b8 02 00 00 00                    mov  eax, 2
   80 bc 24 .. .. .. .. 01           cmp  byte ptr [rsp+d1], 1
