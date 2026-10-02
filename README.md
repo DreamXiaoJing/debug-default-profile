@@ -308,9 +308,13 @@ python patch_browser.py no-debugger --browser chrome --restore
 
 - 只用于你自己的浏览器、你自己的机器。
 - 只为了本地调试 / 自动化 / 测试，别用于他人设备，也别在你不拥有授权的环境里用。
+- **CDP 端口没有任何认证**：能访问 `127.0.0.1:<port>` 的本机进程就等于拿到浏览器的完全控制权
+  （包括默认 profile 里的 Cookie 和登录态）。别把端口绑到局域网 / 公网，别用
+  `--remote-allow-origins=*`，调试完就关掉浏览器。详见
+  [docs/cdp_user_data_dir_check.md](docs/cdp_user_data_dir_check.md) 6.6 的实测记录。
 - 打补丁改的是原文件，浏览器自动更新后补丁会失效，需要重新打。
 - 用前看清风险，自行承担后果。
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 DreamXiaoJing

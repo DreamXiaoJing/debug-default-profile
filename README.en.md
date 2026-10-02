@@ -360,10 +360,15 @@ Full reverse-engineering notes and maintenance steps:
 - For your own browser on your own machine only.
 - Local debugging / automation / testing only. Not for someone else's device, and not in
   an environment you are not authorized to touch.
+- **The CDP port has no authentication whatsoever**: any local process that can reach
+  `127.0.0.1:<port>` gets full control of the browser, including the cookies and sessions in
+  your default profile. Never bind it to a LAN / public address, never use
+  `--remote-allow-origins=*`, and close the browser when you are done. See the measurements in
+  [docs/cdp_user_data_dir_check.md](docs/cdp_user_data_dir_check.md) 6.6.
 - The patch edits the original file; a browser auto-update wipes it and it has to be
   re-applied.
 - Understand the risks before use; you bear the consequences.
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 DreamXiaoJing

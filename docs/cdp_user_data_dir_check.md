@@ -254,11 +254,33 @@ cd /d D:\Chrome\chromium154\src
 git apply D:\Chrome\disable_cdp_user_data_dir_check.patch
 ```
 
-### 6.6 ⚠️ 安全提醒
+### 6.6 ⚠️ 安全提醒（2026-10-02 实测复核）
 
 默认用户数据目录开放 CDP 意味着**本机任意进程**都能连上 `127.0.0.1:<port>`
 读取完整 profile（Cookie、登录态、扩展数据）。补丁只是解除软件限制，
 不改变这一事实。仍建议只用专用 `--user-data-dir` 目录跑调试实例。
+
+**CDP 没有任何认证。** 协议层只有两道校验，在**本机已打过补丁的**
+Chrome `154.0.8037.93` 上实测（headless + 临时 profile）：
+
+| 探测 | 结果 |
+| --- | --- |
+| `GET /json/version` | `200`，直接返回 `Browser` / `Protocol-Version` / `webSocketDebuggerUrl`，**不需要任何 token 或认证头** |
+| 同上，带 `Host: evil.example` | `500` `Host header is specified and is not an IP address or localhost.` —— 防 DNS rebinding |
+| WS 握手带 `Origin: http://evil.example` | `403` `Rejected an incoming WebSocket connection from the … origin. Use the command line flag --remote-allow-origins…` |
+| WS 握手带 `Origin: http://127.0.0.1:9333` | 同样 `403` —— 只要带 `Origin` 就拦，本机来源也不例外 |
+| WS 握手不带 `Origin` | `101 WebSocket Protocol Handshake` —— 握手成功，之后任意 CDP 命令 |
+
+两道校验都在 `devtools_http_handler` 那条路径上，**本补丁不碰它们**：补丁只把
+`IsRemoteDebuggingAllowed` 那处闸门（见 7.3）NOP 掉，Host / Origin 校验照常生效——上表就是
+在打了补丁的二进制上跑出来的。于是结论是：
+
+- **墙外进不来**：网页拿不到端口（Host / Origin 拦着）——前提是别用 `--remote-allow-origins=*`；
+- **墙内不设防**：本机任何进程（包括你没注意到的脚本、被投毒的依赖）只要发原始 HTTP / WS
+  就能进，而默认 profile 里是你的真实登录态。
+
+降低暴露的做法：只在需要时开端口、调试完立刻退出浏览器、不要用 `--remote-debugging-address`
+绑到非回环地址、`--remote-allow-origins` 精确写来源而不是 `*`。
 
 ---
 
