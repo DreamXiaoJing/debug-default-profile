@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 语法 + 命令行冒烟
+        run: |
+          python -m py_compile patch_browser.py
+          python patch_browser.py --help
+          python patch_browser.py
+
+      - name: 打包并校验元数据
+        run: |
+          uv build
+          uvx twine check dist/*
+
+      - name: 装上再跑一次（模拟 pip 安装后的调用）
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/venv/bin/patch-browser --help
+          /tmp/venv/bin/patch-browser

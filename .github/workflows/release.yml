@@ -1,0 +1,49 @@
+name: Release
+
+# 打一个 v* 标签就全自动：构建 → 校验 → 建 GitHub Release（附产物）→ 发 PyPI / GitHub Packages
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:        # 也可以到 Actions 页面手动触发
+
+permissions:
+  contents: write           # 建 / 更新 Release
+  packages: write           # 推到 GitHub Packages
+  id-token: write           # PyPI 信任发布（OIDC，不用存 token）
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: 构建 wheel + sdist
+        run: uv build
+
+      - name: 校验元数据与 README
+        run: uvx twine check dist/*
+
+      - name: 建 GitHub Release 并附上产物
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+      # 需要在 PyPI 配一次 Trusted Publisher（见 docs/releasing.md）。
+      # 没配 / 版本已存在都不会影响 Release：这一步失败或跳过都不拦后面的流程。
+      - name: 发布到 PyPI
+        continue-on-error: true
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+      - name: 发布到 GitHub Packages
+        continue-on-error: true
+        env:
+          TWINE_USERNAME: ${{ github.actor }}
+          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uvx twine upload --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }} dist/*
