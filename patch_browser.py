@@ -223,7 +223,7 @@ def resolve_dll(brand, version, explicit_path, installed=None):
     if version:
         if version not in installed:
             found = ", ".join(sorted(installed, key=vkey)) or "无"
-            fail("版本 %s 未安装或未支持，当前检测到：%s" % (version, found))
+            fail("版本 %s 未在本机检测到，当前检测到：%s" % (version, found))
         return installed[version], version
 
     ver = max(installed, key=vkey)
@@ -259,30 +259,42 @@ def write_report(dll):
 #     mov  eax, 2                  ; NotStartedReason::kDisabledByDefaultUserDataDir
 #     cmp  byte ptr [rsp+d1], 1    ; std::optional::has_value()
 #     jne  <拒绝>                   ; 算不出来 -> 按「是默认目录」处理，fail-closed
-#     cmp  byte ptr [rsp+d2], 0    ; 目录是否等于默认目录（1 = 是）
+#     <第二条检查>                  ; 目录是否等于默认目录（见下面两种形态）
 #     jne  <拒绝>
 #     <放行>
 # 栈偏移 d1/d2、跳转位移、以及前后文都会随构建变化，所以只固定指令骨架，
 # 变化的字节留通配符。跳转有 6 字节（0F 85 rel32）和 2 字节（75 rel8）两种形态：
 # 同一个闸门在不同调用点被内联时形态不同，两套都要扫。
 #
+# 第二条检查见过两种编译结果，语义等价，都要认：
+#     80 bc 24 .. .. .. .. 00    cmp  byte ptr [rsp+d2], 0     ← 154 这一代
+#     f6 84 24 .. .. .. .. 01    test byte ptr [rsp+d2], 1     ← 更老的一代（如 Edge 153）
+#
 # 已打过补丁的 dll 里，那两条 jcc 已经变成等长 NOP（`--restore` 之前一直是 NOP），
 # 所以还要认「NOP 形态」，否则会把「早就打过补丁」误报成「没找到闸门指令」。
 # ---------------------------------------------------------------------------
 _GATE_HEAD = rb"\xb8\x02\x00\x00\x00\x80\xbc\x24..\x00\x00\x01"
-_GATE_MID = rb"\x80\xbc\x24..\x00\x00\x00"
+_GATE_MIDS = (
+    rb"\x80\xbc\x24..\x00\x00\x00",           # cmp  byte ptr [rsp+d2], 0
+    rb"\xf6\x84\x24..\x00\x00\x01",           # test byte ptr [rsp+d2], 1
+)
+_GATE_JCCS = (
+    # (每条 jcc 的字节数, 未打补丁的两条 jcc, 已打补丁的两条 jcc, 是否已打补丁)
+    (6, rb"\x0f\x85....", rb"\x0f\x85....", False),
+    (2, rb"\x75.", rb"\x75.", False),
+    (6, rb"\x90" * 6, rb"\x90" * 6, True),    # 两条 jcc 已被等长 NOP 覆盖
+    (2, rb"\x90" * 2, rb"\x90" * 2, True),
+)
 
 
-def _gate_re(jcc1, jcc2):
-    return re.compile(_GATE_HEAD + jcc1 + _GATE_MID + jcc2, re.S)
+def _gate_re(mid, jcc1, jcc2):
+    return re.compile(_GATE_HEAD + jcc1 + mid + jcc2, re.S)
 
 
-GATE_PATTERNS = (
-    # (regex, 每条 jcc 的字节数, 是不是「已打补丁」的形态)
-    (_gate_re(rb"\x0f\x85....", rb"\x0f\x85...."), 6, False),
-    (_gate_re(rb"\x75.", rb"\x75."), 2, False),
-    (_gate_re(rb"\x90" * 6, rb"\x90" * 6), 6, True),      # 两条 jcc 已被等长 NOP 覆盖
-    (_gate_re(rb"\x90" * 2, rb"\x90" * 2), 2, True),
+GATE_PATTERNS = tuple(
+    (_gate_re(mid, j1, j2), jlen, patched)
+    for mid in _GATE_MIDS
+    for jlen, j1, j2, patched in _GATE_JCCS
 )
 
 
@@ -377,15 +389,21 @@ def cmd_debug_port(args):
             info("新品牌的话，还要在 patch_db.json 的 brands 里补上 dll 名与搜索根目录。")
         return
 
-    # --- --list：支持的版本 + 本机检测到的版本 ---
+    # --- --list：已收录的版本 + 本机检测到的版本 ---
     if args.list:
         for brand in sorted(PATCH_DB):
             print("%s:" % brand)
             for ver in sorted(PATCH_DB[brand], key=vkey):
                 print("  %s  (%d 个补丁点)" % (ver, len(PATCH_DB[brand][ver])))
-            inst = scan_brand(brand, set(PATCH_DB[brand]))
+            inst = scan_brand(brand)          # 所有已安装版本，不只已收录的
             if inst:
-                print("  本机检测到: " + ", ".join(sorted(inst, key=vkey)))
+                known = [v for v in sorted(inst, key=vkey) if v in PATCH_DB[brand]]
+                new = [v for v in sorted(inst, key=vkey) if v not in PATCH_DB[brand]]
+                if known:
+                    print("  本机检测到: " + ", ".join(known))
+                if new:
+                    print("  未收录但已安装: " + ", ".join(new)
+                          + "  （auto / 一键修复.bat 会现场定位并收录）")
         return
 
     # --- 正式流程 ---
@@ -401,16 +419,20 @@ def cmd_debug_port(args):
             fail("无法从文件名判断品牌（%s），请用 --browser 指定。" % dll.name)
         installed = {}
     else:
-        installed = scan_brand(brand, set(PATCH_DB.get(brand, {})))
+        # 所有已安装版本都算候选，不只已收录的 —— 否则浏览器一更新就会报「未找到已支持版本」
+        installed = scan_brand(brand)
         if not installed:
-            fail("未找到已支持版本的 %s。搜索目录：%s"
+            fail("未找到 %s 安装目录。搜索：%s"
                  % (brand, ", ".join(BRANDS[brand]["roots"])))
 
     dll, version = resolve_dll(brand, args.version, args.path, installed)
     if version not in PATCH_DB.get(brand, {}):
         supported = ", ".join(sorted(PATCH_DB.get(brand, {}), key=vkey)) or "无"
-        fail("版本 %s 不在 patch_db.json 的支持列表（%s）。先跑 --locate 重新定位。"
-             % (version, supported))
+        fail("版本 %s 不在 patch_db.json 的已收录列表（%s）。\n"
+             "       省事做法：python patch_browser.py auto --all（或双击 一键修复.bat）——\n"
+             "       没收录的版本会现场按闸门形状定位、打完自动收录；\n"
+             "       只想看定位结果：python patch_browser.py debug-port --browser %s --locate --save"
+             % (version, supported, brand))
 
     sites = load_patch_sites(brand, version)
     info("目标: %s (%s)，%d 个补丁点" % (dll, version, len(sites)))
@@ -1243,7 +1265,7 @@ def full_check():
                     todo.append("%s %s 的 %s 补丁未打%s —— 以管理员运行：%s"
                                 % (brand, ver, tool, old_note, cmd))
                 elif st == "未收录":
-                    todo.append("%s %s 的 %s 未收录%s —— 要用就先重新定位：%s --locate"
+                    todo.append("%s %s 的 %s 未收录%s —— 双击 一键修复.bat（或 %s --locate --save）"
                                 % (brand, ver, tool, old_note, cmd))
                 else:
                     todo.append("%s %s 的 %s 状态异常（%s：%s）%s"
@@ -1254,7 +1276,8 @@ def full_check():
         print("\n" + title)
         if tool == "debug-port":
             for brand in sorted(PATCH_DB):
-                info("支持版本 %s：%s" % (brand, "、".join(sorted(PATCH_DB[brand], key=vkey))))
+                info("已收录版本 %s：%s（没收录的会现场定位，不用等更新）"
+                     % (brand, "、".join(sorted(PATCH_DB[brand], key=vkey))))
         for brand, ver, st, note, bak, old in rows[tool]:
             mark = {"已打补丁": ok, "未安装": info}.get(st, warn)
             line = "%s（%s）" % (st, note) if note else st

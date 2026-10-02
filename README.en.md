@@ -49,16 +49,35 @@ If you build Chromium yourself, there is also a source-level patch:
 
 ## Supported versions
 
+**In practice it works on every version** — there is no "only these builds are supported"
+limit:
+
+- `no-debugger` derives its patch site from the V8 runtime function table on every run, so a
+  browser update needs no code change at all.
+- `debug-port` byte-verifies the versions recorded in `patch_db.json`, and for a version that
+  is **not** recorded yet `auto` locates the gate from its instruction shape on the spot, then
+  writes the sites back into `patch_db.json`. So a new build never has to wait for the author —
+  just double-click `一键修复.bat`.
+
+The table below is only the set of builds **verified on a real machine** (a record, not a limit):
+
 | Browser | Version | Target file |
 | --- | --- | --- |
 | Chrome | 154.0.8037.93 (current) | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
-| Edge | 154.0.4258.48 (current) | msedge.dll |
+| Edge | 154.0.4258.53 (current) | msedge.dll |
+| Edge | 154.0.4258.48 | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
 
-When the version does not match (after an auto-update, say) the tool refuses to write
-instead of corrupting the file. See below for adding a version — after a minor
-auto-update, `--locate` re-finds the patch sites for you.
+After a browser auto-update (Edge / Chrome replace the version directory, which wipes the
+patches), run `python patch_browser.py auto --all` or just double-click `一键修复.bat`.
+
+There is one case it will not guess at: if a major version rewrote that gate code so the
+instruction shape changed, the tool reports "no gate instructions found" and **refuses to
+write** (it never guesses and never corrupts the file). Locate such a build by hand following
+`docs/` and add its sites to `patch_db.json`. `--locate` matches the compiled instruction
+skeleton, so as long as the skeleton is intact any build — new or old — is recognised, and a
+minor update (sites just shift) is routine.
 
 ## Configuration file `patch_db.json`
 
