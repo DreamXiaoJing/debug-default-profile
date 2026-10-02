@@ -170,6 +170,66 @@ def save_db(path=None):
     ok("已更新参数文件: %s" % path)
 
 
+# ---------------------------------------------------------------------------
+# README 里的版本表：从 patch_db.json 生成，收录新版本时顺手刷新
+# 文件不存在、或没有 version-table 标记 → 安静跳过，绝不因此报错
+# ---------------------------------------------------------------------------
+MD_TABLE_FILES = ("README.md", "README.en.md")
+MD_TABLE_BEGIN = "<!-- version-table:start -->"
+MD_TABLE_END = "<!-- version-table:end -->"
+
+
+def version_table(lang="zh"):
+    """生成 Markdown 版本表（lang='zh' 用中文表头，其它用英文）。"""
+    cur = "（当前）" if lang == "zh" else " (current)"
+    head = ("| 浏览器 | 版本 | 目标文件 |" if lang == "zh"
+            else "| Browser | Version | Target file |")
+    rows = [head, "| --- | --- | --- |"]
+    for brand in sorted(PATCH_DB):
+        dll = BRANDS.get(brand, {}).get("dll", "?")
+        for i, ver in enumerate(sorted(PATCH_DB[brand], key=vkey, reverse=True)):
+            rows.append("| %s | %s%s | %s |"
+                        % (brand.capitalize(), ver, cur if i == 0 else "", dll))
+    return "\n".join(rows)
+
+
+def update_md_tables():
+    """把版本表写回带标记的 README；文件不在 / 没标记 / 写不进去都只提示，不报错。"""
+    updated, skipped = [], []
+    for name in MD_TABLE_FILES:
+        path = DB_PATH.with_name(name)
+        if not path.is_file():
+            skipped.append(name)
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            skipped.append(name)
+            continue
+        if MD_TABLE_BEGIN not in text or MD_TABLE_END not in text:
+            skipped.append(name)
+            continue
+        lang = "en" if ".en." in name else "zh"
+        before, rest = text.split(MD_TABLE_BEGIN, 1)
+        after = rest.split(MD_TABLE_END, 1)[1]
+        new = (before + MD_TABLE_BEGIN + "\n" + version_table(lang) + "\n"
+               + MD_TABLE_END + after)
+        if new == text:
+            continue
+        try:
+            path.write_text(new, encoding="utf-8")
+            updated.append(name)
+        except OSError as e:
+            warn("刷新 %s 失败（不影响打补丁）: %r" % (name, e))
+    if updated:
+        ok("已刷新版本表: " + "、".join(updated))
+    if skipped:
+        info("跳过版本表（文件不在或没有 version-table 标记）: " + "、".join(skipped))
+    if not updated and not skipped:
+        info("版本表已是最新")
+    return updated
+
+
 def scan_brand(brand, versions=None):
     """扫描 BRANDS[brand] 的搜索根目录，返回 {版本: dll路径}。
 
@@ -382,6 +442,7 @@ def cmd_debug_port(args):
             PATCH_DB.setdefault(brand, {})[ver] = [(off, orig.hex(" ").upper())
                                                    for off, orig in sites]
             save_db()
+            update_md_tables()
         else:
             where = 'patch_db.json 的 patch_db["%s"]' % brand if brand else "patch_db.json"
             info("贴进 %s 里，再跑 --dry-run 校验；加 --save 可以直接写进去。" % where)
@@ -391,6 +452,12 @@ def cmd_debug_port(args):
 
     # --- --list：已收录的版本 + 本机检测到的版本 ---
     if args.list:
+        if args.markdown:
+            print(version_table("zh"))
+        if args.update_md:
+            update_md_tables()
+        if args.markdown or args.update_md:
+            return
         for brand in sorted(PATCH_DB):
             print("%s:" % brand)
             for ver in sorted(PATCH_DB[brand], key=vkey):
@@ -1027,6 +1094,7 @@ def auto_one(dll, brand, version, args, targets):
                     PATCH_DB.setdefault(brand, {})[version] = [(o, b.hex(" ").upper())
                                                               for o, b in located]
                     save_db()
+                    update_md_tables()
                 else:
                     warnings.append("debug-port：品牌/版本没认出来，补丁点没有写进 patch_db.json")
         elif st == "未打补丁":
@@ -1366,6 +1434,10 @@ def main(argv=None):
                     help_backup="备份存放目录（默认放在 dll 旁边，后缀 .orig.bak）")
     p1.add_argument("--save", action="store_true",
                     help="配合 --locate：把定位到的补丁点直接写回 patch_db.json")
+    p1.add_argument("--markdown", action="store_true",
+                    help="配合 --list：直接打印可贴进 README 的 Markdown 版本表")
+    p1.add_argument("--update-md", action="store_true",
+                    help="配合 --list：把版本表写回 README（文件不在或没标记就跳过）")
     p1.set_defaults(func=cmd_debug_port)
 
     p2 = sub.add_parser("no-debugger", aliases=["nodebug"],

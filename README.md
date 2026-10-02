@@ -1,4 +1,4 @@
-# debug-default-profile
+﻿# debug-default-profile
 
 **中文** · [English](README.en.md)
 
@@ -46,16 +46,28 @@ jne   失败
 
 下表只是**已经在真机上验证过的构建**（是记录，不是上限）：
 
+<!-- version-table:start -->
 | 浏览器 | 版本 | 目标文件 |
 | --- | --- | --- |
-| Chrome | 154.0.8037.93（当前） | chrome.dll |
+| Chrome | 154.0.8037.98（当前） | chrome.dll |
+| Chrome | 154.0.8037.93 | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
 | Edge | 154.0.4258.53（当前） | msedge.dll |
 | Edge | 154.0.4258.48 | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
+<!-- version-table:end -->
 
 浏览器自动更新后（Edge / Chrome 会直接换掉版本目录，旧补丁随之失效），跑
 `python patch_browser.py auto --all`，或者直接双击 `一键修复.bat`。
+
+这张表由 `patch_db.json` 生成：**收录新版本时工具会自动把上表刷新掉**（README 不在、或没有
+`version-table` 标记就跳过，不影响补丁）；想手动刷新：
+
+```shell
+python patch_browser.py debug-port --list --markdown --update-md
+```
+
+只打印不写文件就去掉 `--update-md`。
 
 认不出来的情况也有：闸门那几行代码被大版本重写过、骨架变了，工具会**明确报「没找到闸门指令」
 并拒绝写入**（不会乱猜、不会打坏文件）；这种构建照 docs/ 的手工流程定位，把补丁点加进
@@ -86,6 +98,30 @@ jne   失败
 - 不用手写：`debug-port --locate --save` 会把新定位到的补丁点写回这个文件；
   `auto` 在没收录的版本上打完补丁也会自动收录。
 - `no-debugger` 的补丁点每次运行自己推导，不存在这个文件里。
+
+## 跑起来
+
+要求：**Windows 10 / 11 + Python 3.11 或更高**。纯标准库，**没有依赖，不需要 `pip install`**，
+也没有编译步骤——克隆下来就能跑。
+
+```shell
+git clone https://github.com/DreamXiaoJing/debug-default-profile.git
+cd debug-default-profile
+python patch_browser.py
+```
+
+最后那条是**自检**：只读、不需要管理员，会把两个补丁 × 两个浏览器的状态打一遍，再告诉你要做什么。
+真要去改浏览器（比如更新后补丁失效）：
+
+```shell
+一键修复.bat
+```
+
+双击也行——它会弹 UAC 提权、必要时问你要不要关掉浏览器，然后自动重打两个补丁；
+命令行等价写法是 `python patch_browser.py auto --all`。
+
+不想保持一个仓库也无所谓：整个工具就是 `patch_browser.py` + `patch_db.json` 两个文件，
+拷到任何目录都能跑（`一键修复.bat` 是可选的便利入口）。
 
 ## 用法
 

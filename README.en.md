@@ -61,16 +61,29 @@ limit:
 
 The table below is only the set of builds **verified on a real machine** (a record, not a limit):
 
+<!-- version-table:start -->
 | Browser | Version | Target file |
 | --- | --- | --- |
-| Chrome | 154.0.8037.93 (current) | chrome.dll |
+| Chrome | 154.0.8037.98 (current) | chrome.dll |
+| Chrome | 154.0.8037.93 | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
 | Edge | 154.0.4258.53 (current) | msedge.dll |
 | Edge | 154.0.4258.48 | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
+<!-- version-table:end -->
 
 After a browser auto-update (Edge / Chrome replace the version directory, which wipes the
 patches), run `python patch_browser.py auto --all` or just double-click `一键修复.bat`.
+
+This table is generated from `patch_db.json`: **recording a new version refreshes it
+automatically** (a missing README, or one without the `version-table` markers, is skipped and
+never breaks the patch). To refresh by hand:
+
+```shell
+python patch_browser.py debug-port --list --markdown --update-md
+```
+
+Drop `--update-md` to print the table without writing anything.
 
 There is one case it will not guess at: if a major version rewrote that gate code so the
 instruction shape changed, the tool reports "no gate instructions found" and **refuses to
@@ -106,6 +119,33 @@ edit that file instead of `patch_browser.py`:
 - No hand-editing needed: `debug-port --locate --save` writes newly located sites back into
   this file, and `auto` records them automatically when it patches an unknown version.
 - `no-debugger` derives its single patch site on every run, so it is not stored here.
+
+## Run from source
+
+Requirements: **Windows 10 / 11 + Python 3.11 or newer**. Pure standard library — **no
+dependencies, no `pip install`, no build step**. Clone it and run.
+
+```shell
+git clone https://github.com/DreamXiaoJing/debug-default-profile.git
+cd debug-default-profile
+python patch_browser.py
+```
+
+That last command is the **self-check**: read-only, no administrator rights needed. It reports
+both patches across both browsers and then tells you what to do next. To actually patch a
+browser (for example after an auto-update wiped the patches):
+
+```shell
+一键修复.bat
+```
+
+Double-clicking works too — it asks for UAC elevation, offers to close the browser if it is
+running, and re-applies both patches. The command-line equivalent is
+`python patch_browser.py auto --all`.
+
+You do not have to keep a checkout at all: the whole tool is `patch_browser.py` +
+`patch_db.json` — copy those two anywhere and it runs (`一键修复.bat` is an optional
+convenience entry point).
 
 ## Usage
 
