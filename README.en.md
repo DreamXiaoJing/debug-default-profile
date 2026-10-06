@@ -67,7 +67,8 @@ The table below is only the set of builds **verified on a real machine** (a reco
 | Chrome | 154.0.8037.98 (current) | chrome.dll |
 | Chrome | 154.0.8037.93 | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
-| Edge | 154.0.4258.53 (current) | msedge.dll |
+| Edge | 154.0.4258.62 (current) | msedge.dll |
+| Edge | 154.0.4258.53 | msedge.dll |
 | Edge | 154.0.4258.48 | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
 <!-- version-table:end -->

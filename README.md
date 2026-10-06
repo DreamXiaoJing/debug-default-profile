@@ -52,7 +52,8 @@ jne   失败
 | Chrome | 154.0.8037.98（当前） | chrome.dll |
 | Chrome | 154.0.8037.93 | chrome.dll |
 | Chrome | 154.0.8037.58 | chrome.dll |
-| Edge | 154.0.4258.53（当前） | msedge.dll |
+| Edge | 154.0.4258.62（当前） | msedge.dll |
+| Edge | 154.0.4258.53 | msedge.dll |
 | Edge | 154.0.4258.48 | msedge.dll |
 | Edge | 154.0.4258.37 | msedge.dll |
 <!-- version-table:end -->
